@@ -13,7 +13,7 @@ contract NFTMinter is ERC721, Ownable {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
-    uint256 public constant nftPrice = 10 * (10**18);
+    uint256 public constant nftPrice = 0.01 ether;
     uint256 public constant maxPurchase = 2;
     uint256 public maxSupply;
     mapping (uint256 => string) private _tokenURIs;
@@ -23,16 +23,14 @@ contract NFTMinter is ERC721, Ownable {
         maxSupply = 3;
     }
 
+    function totalSupply() view public returns (uint256) {
+        return maxSupply;
+    }
+
    function withdraw() public onlyOwner {
         uint balance = address(this).balance;
         payable(msg.sender).transfer(balance);
     }
-
-    function _setTokenURI(uint256 tokenId, string memory _tokenURI) internal virtual {
-        require(_exists(tokenId), "ERC721Metadata: URI set of nonexistent token");
-        _tokenURIs[tokenId] = _tokenURI;
-    }
-
 
     function getMintedCount() public view returns (uint256) {
         return _mintedCount;
@@ -50,9 +48,8 @@ contract NFTMinter is ERC721, Ownable {
         for(uint i = 0; i < numberOfTokens; i++) {
             uint256 mintIndex = getMintedCount();
             if (getMintedCount() < maxSupply) {
-                increaseMintedCount(1);
                 _safeMint(msg.sender, mintIndex);
-                _setTokenURI(mintIndex, string(abi.encodePacked("http://localhost:3000/metadata/", mintIndex, ".json"))); //TODO: Check if this works properly
+                increaseMintedCount(1);
             }
         }
     }
