@@ -1,19 +1,30 @@
-import React, { useEffect, useState } from "react";
-import "./App.css";
 import { ethers } from "ethers";
+import React, { useEffect, useState } from "react";
+import { NFTMinter } from "../typechain";
+import "./App.css";
 import Minter from "./artifacts/contracts/NFTMinter.sol/NFTMinter.json";
-const minterAddress = "0x21ea4128E26e2e57aa0Cdf0fA70440F03730c770";
 
 function App() {
   const [mintedCount, setMintedCount] = useState(0);
   const [totalSupply, setTotalSupply] = useState(0);
-  const [loading, setLoading] = useState(false);
+  // const [loading, setLoading] = useState(false);
   const [mintAmount, setMintAmount] = useState(1);
   const [error, setError] = useState("");
-  const [refresh, setRefresh] = useState(false);
+
+  const minterAddress = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
   const isEthereum = typeof window.ethereum !== "undefined";
-  const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
-  const contract = new ethers.Contract(minterAddress, Minter.abi, provider);
+
+  //TODO: Change network if incorrect
+  const provider = new ethers.providers.Web3Provider(
+    window.ethereum as any,
+    "any"
+  );
+
+  const contract = new ethers.Contract(
+    minterAddress,
+    Minter.abi,
+    provider.getSigner()
+  ) as NFTMinter;
 
   const fetchAmountMinted = async () => {
     if (isEthereum) {
@@ -34,77 +45,70 @@ function App() {
       setError(err.data.message);
     }
   };
-  const requestAccount = async () => {
-    await window.ethereum.request({ method: "eth_requestAccounts" });
-  };
 
-  const mint = async (amount: number) => {
-    if (isEthereum) {
+  const handleMint = async () => {
+    try {
       await requestAccount();
 
-      const signer = provider.getSigner();
-
-      const options = {
-        value: ethers.utils.parseEther((0.01 * amount).toString()),
-      };
-
-      const contract = new ethers.Contract(minterAddress, Minter.abi, signer);
-      try {
-        const transaction = await contract.mintToken(mintAmount, options);
-
-        await transaction.wait();
-      } catch (err: any) {
-        setError(err.error.message);
-      }
+      const contract = new ethers.Contract(
+        minterAddress,
+        Minter.abi,
+        provider.getSigner()
+      );
+      await contract.mintToken(mintAmount, "tokenURI" + Math.random() * 1000, {
+        value: ethers.utils.parseEther((0.1 * mintAmount).toString()),
+      }); //TODO
+    } catch (err: any) {
+      console.log(err);
+      setError(err.data.message);
     }
+  };
+
+  const requestAccount = async () => {
+    window.ethereum
+      .request({ method: "eth_requestAccounts" })
+      .then((a) => console.log(a))
+      .catch((error) => {
+        if (error.code === 4001) {
+          // EIP-1193 userRejectedRequest error
+          console.log("Please connect to MetaMask.");
+        } else {
+          console.error(error);
+        }
+      });
   };
 
   useEffect(() => {
-    fetchAmountMinted();
-    fetchTotalSupply();
-  }, [refresh]);
+    const fn = () => {
+      fetchAmountMinted();
+      fetchTotalSupply();
+    };
+    fn();
+  }, []);
 
-  const handleWithdraw = async () => {
-    const signer = provider.getSigner();
-
-    const contract = new ethers.Contract(minterAddress, Minter.abi, signer);
-    try {
-      const tx = await contract.withdraw();
-
-      await tx.wait();
-    } catch (err: any) {
-      setError(err.error.message);
-    }
-  };
-
-  const handleMint = async () => {
-    setLoading(true);
-    await mint(mintAmount);
-    setLoading(false);
-    setRefresh((prev) => !prev);
-  };
   return (
     <div className="App">
-      <header className="App-header">
-        <div>
-          NFTS minted: {mintedCount}/{totalSupply}
-        </div>
-        <br />
+      <div>
+        React <strong>NFT</strong> Minter
+      </div>
 
-        <div>
-          <input
-            type="number"
-            value={mintAmount}
-            onChange={(e) => setMintAmount(parseInt(e.target.value))}
-          />
+      <div className="choose">
+        Choose amount to mint:
+        <select onChange={(e) => setMintAmount(parseInt(e.target.value))}>
+          {Array.from(Array(20)).map((_, id) => (
+            <option value={id + 1} key={id + 1}>
+              {id + 1}
+            </option>
+          ))}
+        </select>
+      </div>
 
-          <button onClick={handleMint}>Mint your NFT</button>
-        </div>
-        <br />
-        <button onClick={handleWithdraw}>withdraw</button>
-        {loading ?? "Loading..."}
-        {error && <div style={{ color: "#e45c5c" }}>{error}</div>}
-      </header>
+      <div>Price per token: </div>
+      <button onClick={handleMint}>Mint</button>
+      <div>
+        <strong>{mintedCount}</strong>/<strong>{totalSupply}</strong> tokens
+        minted
+      </div>
     </div>
   );
 }
