@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import React, { useEffect, useState } from "react";
+import { textSpanOverlapsWith } from "typescript";
 import { NFTMinter } from "../typechain";
 import "./App.css";
 import Minter from "./artifacts/contracts/NFTMinter.sol/NFTMinter.json";
@@ -7,9 +8,9 @@ import Minter from "./artifacts/contracts/NFTMinter.sol/NFTMinter.json";
 function App() {
   const [mintedCount, setMintedCount] = useState(0);
   const [totalSupply, setTotalSupply] = useState(0);
-  // const [loading, setLoading] = useState(false);
+  const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [mintAmount, setMintAmount] = useState(1);
-  const [error, setError] = useState("");
 
   const minterAddress = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
   const isEthereum = typeof window.ethereum !== "undefined";
@@ -27,26 +28,37 @@ function App() {
   ) as NFTMinter;
 
   const fetchAmountMinted = async () => {
-    if (isEthereum) {
-      try {
-        const data = await contract.getMintedCount();
-        setMintedCount(parseInt(data.toHexString()));
-      } catch (err: any) {
-        setError(err.data.message);
-      }
+    if (!isEthereum) return;
+    console.log(await contract.owner());
+    try {
+      const data = await contract.getMintedCount();
+      setMintedCount(parseInt(data.toHexString()));
+    } catch (err: any) {
+      console.error(err);
     }
   };
 
+  const fetchBalance = async () => {
+    if (!isEthereum) return;
+    const data = await contract.getBalance();
+    setBalance(parseFloat(ethers.utils.formatEther(data.toString())));
+    try {
+    } catch (err) {
+      console.error(err);
+    }
+  };
   const fetchTotalSupply = async () => {
+    if (!isEthereum) return;
     try {
       const data = await contract.totalSupply();
       setTotalSupply(parseInt(data.toHexString()));
     } catch (err: any) {
-      setError(err.data.message);
+      console.error(err);
     }
   };
 
   const handleMint = async () => {
+    if (!isEthereum) return;
     try {
       await requestAccount();
 
@@ -55,19 +67,26 @@ function App() {
         Minter.abi,
         provider.getSigner()
       );
-      await contract.mintToken(mintAmount, "tokenURI" + Math.random() * 1000, {
-        value: ethers.utils.parseEther((0.1 * mintAmount).toString()),
-      }); //TODO
+
+      const tx = await contract.mintToken(
+        mintAmount,
+        "tokenURI" + Math.random() * 1000,
+        {
+          value: ethers.utils.parseEther((0.1 * mintAmount).toString()),
+        }
+      ); //TODO - token URIs
+      setLoading(true);
+      await tx.wait();
+      setLoading(false);
     } catch (err: any) {
-      console.log(err);
-      setError(err.data.message);
+      console.error(err);
     }
   };
 
   const requestAccount = async () => {
     window.ethereum
       .request({ method: "eth_requestAccounts" })
-      .then((a) => console.log(a))
+      .then((a: any) => console.log(a))
       .catch((error) => {
         if (error.code === 4001) {
           // EIP-1193 userRejectedRequest error
@@ -80,11 +99,13 @@ function App() {
 
   useEffect(() => {
     const fn = () => {
+      requestAccount();
       fetchAmountMinted();
       fetchTotalSupply();
+      fetchBalance();
     };
     fn();
-  }, []);
+  }, [loading]);
 
   return (
     <div className="App">
@@ -103,12 +124,14 @@ function App() {
         </select>
       </div>
 
-      <div>Price per token: </div>
+      <div>Price per token: 0.1 {ethers.constants.EtherSymbol}</div>
       <button onClick={handleMint}>Mint</button>
       <div>
         <strong>{mintedCount}</strong>/<strong>{totalSupply}</strong> tokens
         minted
       </div>
+      {loading && "Loading..."}
+      <div>Total ETH in Contract: {balance}</div>
     </div>
   );
 }
